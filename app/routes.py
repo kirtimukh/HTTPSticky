@@ -54,7 +54,7 @@ async def http_echo(input: DataIn, client_id: str, request: Request):
 @router.post("/without-redis/{client_id}")
 async def via_ws(input: DataIn, client_id: str):
     """
-    HTTP connections are ephemereal, stateless
+    HTTP connections are ephemeral, stateless
     Any http request from user are not necessarily received by the worker that has the ws-connection
     """
     write_to_log("http-ws", client_id, input.text)
@@ -71,7 +71,7 @@ async def via_ws(input: DataIn, client_id: str):
 @router.post("/with-redis/{client_id}")
 async def send_message(input: DataIn, client_id: str):
     """
-    Publish messages to redis queue and any worker that has the ws-connection can respond
+    Publish messages to a Redis pub/sub channel; any worker that has the ws-connection can respond
     """
     write_to_log("http-redis", client_id, input.text)
 

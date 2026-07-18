@@ -75,7 +75,7 @@
               </div>
               <div class="action-wrap" data-path="http-sticky">
                 <button type="button" class="action" data-path="http-sticky"><span class="label">HTTP Sticky</span></button>
-                <button type="button" class="info-btn" aria-label="About HTTP Sticky" aria-expanded="false" data-info="http-sticky">i<i>Sticky cookie pins every request to the instance that issued it.</i></button>
+                <button type="button" class="info-btn" aria-label="About HTTP Sticky" aria-expanded="false" data-info="http-sticky">i<i>StickyStr is hashed by Nginx — same cookie value always hits the same upstream (not necessarily the issuer).</i></button>
               </div>
               <div class="action-wrap" data-path="ws-only">
                 <button type="button" class="action" data-path="ws-only"><span class="label">WS Only</span></button>
@@ -87,8 +87,8 @@
             <div class="group-label split">Split · HTTP → WSS</div>
             <div class="actions">
               <div class="action-wrap" data-path="with-redis">
-                <button type="button" class="action" data-path="with-redis"><span class="label">Redis Queue</span></button>
-                <button type="button" class="info-btn" aria-label="About Publish to Queue" aria-expanded="false" data-info="with-redis">i<i>Any instance publishes to Redis; the WS owner delivers to you.</i></button>
+                <button type="button" class="action" data-path="with-redis"><span class="label">Redis Pub/Sub</span></button>
+                <button type="button" class="info-btn" aria-label="About Redis Pub/Sub" aria-expanded="false" data-info="with-redis">i<i>Any instance publishes to a Redis channel; the WS owner delivers to you.</i></button>
               </div>
               <div class="action-wrap" data-path="not-sticky">
                 <button type="button" class="action" data-path="not-sticky"><span class="label">HTTP→WS</span></button>
@@ -96,7 +96,7 @@
               </div>
               <div class="action-wrap" data-path="sticky">
                 <button type="button" class="action" data-path="sticky"><span class="label">Sticky→WS</span></button>
-                <button type="button" class="info-btn" aria-label="About Sticky HTTP to WS" aria-expanded="false" data-info="sticky">i<i>Sticky cookie routes to the sticky issuer, which delivers over its in-memory WS.</i></button>
+                <button type="button" class="info-btn" aria-label="About Sticky HTTP to WS" aria-expanded="false" data-info="sticky">i<i>Same StickyStr hash as the WS upgrade — routes to the WS home, which delivers over its in-memory WS.</i></button>
               </div>
             </div>
           </div>
@@ -121,7 +121,7 @@
       <button type="button" class="filter-chip" data-filter="http-only" aria-pressed="true">HTTP RR</button>
       <button type="button" class="filter-chip" data-filter="http-sticky" aria-pressed="true">HTTP Sticky</button>
       <button type="button" class="filter-chip" data-filter="ws-only" aria-pressed="true">WS Only</button>
-      <button type="button" class="filter-chip" data-filter="with-redis" aria-pressed="true">Redis Queue</button>
+      <button type="button" class="filter-chip" data-filter="with-redis" aria-pressed="true">Redis Pub/Sub</button>
       <button type="button" class="filter-chip" data-filter="not-sticky" aria-pressed="true">HTTP→WS</button>
       <button type="button" class="filter-chip" data-filter="sticky" aria-pressed="true">Sticky→WS</button>
     </div>

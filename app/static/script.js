@@ -24,7 +24,7 @@ const PATHS = {
     route: "wss echo",
   },
   "with-redis": {
-    label: "Redis Queue",
+    label: "Redis Pub/Sub",
     kind: "split",
     route: "/with-redis/{id}",
     guaranteed: true,
@@ -972,7 +972,8 @@ input.addEventListener("keydown", (e) => {
 
 /* —— WebSocket —— */
 function connectWebSocket() {
-  // clearStickyCookie();
+  // Restore StickyStr so Nginx hashes initial connect and reconnects to the same upstream.
+  setStickyCookie();
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${proto}//${location.host}/ws/${SESSION_ID}`);
 

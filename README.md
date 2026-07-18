@@ -12,12 +12,12 @@ Modern webapps are scalable, in some part, due to http connections being statele
 
 ## A bit about WebSocket connections
 
-**HTTP connections are ephemereal** whereas **WebSocket connections are long lived**.
-- **Once the request response cycle is over the server ends the connection with the client**. This is what allows webplications to scale so well. You can run multiple instances of the same application code and the app will do its job regardless of which instance receives your http request.
-- **Websockets** connections are meant to **maintain connection for extended duration**. Thats why when **Client_A** connects with **Server_1** the connection is **kept alive in-memory** of **Server_1**.
+**HTTP connections are ephemeral** whereas **WebSocket connections are long lived**.
+- **Once the request response cycle is over the server ends the connection with the client**. This is what allows applications to scale so well. You can run multiple instances of the same application code and the app will do its job regardless of which instance receives your http request.
+- **WebSocket** connections are meant to **maintain connection for extended duration**. That's why when **Client_A** connects with **Server_1** the connection is **kept alive in-memory** of **Server_1**.
 - If **Server_10** receives an event that requires it to send the data to **Client_A**
-  - it has to publish it to a **redis-like pubsub system**.
-  - Similarly, it subscribes to the same queue for messages to clients whose WS-Connection it has in memory.
+  - it has to publish it to a **Redis-like pub/sub system**.
+  - Similarly, it subscribes to the same **channel** for messages to clients whose WS connection it has in memory.
 
 ```text
                     live WebSocket tunnel
@@ -26,9 +26,9 @@ Modern webapps are scalable, in some part, due to http connections being statele
          ▼                                      ▼
 ┌──────────────┐   HTTP    ┌───────┐         ┌───────┐         ┌───────┐
 │ Your browser │──────────▶│ Nginx │────────▶│ app-1 │◀───────▶│ Redis │
-└──────────────┘           └───────┘    ┌───▶│       │  pub/   │ queue │
-                                        │    └───────┘  sub    └───┬───┘
-                                        │    ┌───────┐             │
+└──────────────┘           └───────┘    ┌───▶│       │  pub/   │ pub/  │
+                                        │    └───────┘  sub    │ sub   │
+                                        │    ┌───────┐         └───┬───┘
                                         ├───▶│ app-2 │◀────────────┤
                                         │    └───────┘             │
                                         │    ┌───────┐             │
@@ -46,7 +46,7 @@ Modern webapps are scalable, in some part, due to http connections being statele
 2. `cd HTTPSticky`
 3. `docker compose up`
 
-### Mode 1 (live version) ----------- 3 containers with 1 worker each
+### Live version — 3 containers, one uvicorn process each
 
 ```text
   Your browser ──▶ Nginx ──▶ app-1 / app-2 / app-3 ──▶ Redis
@@ -56,26 +56,14 @@ Modern webapps are scalable, in some part, due to http connections being statele
                      └──── live WebSocket tunnel (one home) ─┘
 ```
 
-Buttons:
+Buttons (same labels as the app UI):
 
-1. **Requests are serially delivered** to application containers **in round robin fashion**.
-2. **Sticky cookie** added by app instance ensures that all **future requests reach the same instance** every time. This **includes** the **initial ws connection** request.
-3. WS connections are long lived. The **same container is bound to receive** all messages sent throught that connection. If connection is broken, can **use same cookie to reconnect to same container**.
-4. **Standard for managing WS** connections. **Messages are published to queue** and the container with the recipient's connection does the delivery.
-5. WS response NOT GUARANTEED. **No sticky cookie** in http request. App instance that has the client's websocket session may not receive it.
-6. Uses **sticky cookie** in request header. If **WebSocket connection is made with same cookie**, the **instance that receives the request will also have the connection**.
-
-### Mode 2 ----------- 1-container-4-workers
-
-Will work the same if the image called `app` is selected in `docker-compose.yml`.
-
-Docker runs **FastAPI app with 4 workers** in 1 container and a **redis service** in another. The workers are identified by their `pid`.
-
-The UI provides **4 ways to send message** to the server.
-1. **http-out, http-in**
-2. websockets, **ws-out, ws-in**: works all the time because the client and the server instance are connected via the websocket **connection throughout** the session
-3. Makes http requests to server to **echo back the text through WS**. ws message **not guaranteed** because any instance may receive this request.
-4. Makes http requests to server to **publish text to redis**, all the workers subscribe to it, **echo text is guaranteed**.
+1. **HTTP RR** — Requests are delivered to application containers **in round-robin** fashion (no sticky cookie).
+2. **HTTP Sticky** — Sticky cookie (`StickyStr`): Nginx **hashes the cookie value** and routes to the **same upstream every time**. This **includes** the **initial WS connection** (and reconnects, which restore the cookie first). Same cookie value → same hash bucket — **not** necessarily the instance that *issued* the cookie (`-by-{APP_ID}` is for display only).
+3. **WS Only** — WS connections are long lived. The **same container receives** all messages sent through that connection. If the connection is broken, the client **restores the same cookie** and reconnects to the **same hash target**.
+4. **Redis Pub/Sub** — Standard pattern for managing WS fan-out. **Messages are published on a Redis channel**; every instance receives them, and the container that holds the recipient's connection delivers over WS.
+5. **HTTP→WS** — WS response **not guaranteed**. **No sticky cookie** on the HTTP request. The instance that has the client's WebSocket session may not receive it.
+6. **Sticky→WS** — Uses **sticky cookie** on the HTTP request. If the **WebSocket was opened with the same cookie**, the instance that receives the request is the WS home (same hash → same upstream).
 
 ## Code implementation
 
@@ -87,39 +75,35 @@ Redis, FastAPI, Uvicorn, Docker, Nginx
 
 [docker-compose.yml](https://github.com/kirtimukh/HTTPSticky/blob/main/docker-compose.yml)
 
-- **3 replica containers** of the app is run
-- The containers run **uvicorn server with 1 worker each**
+- **3 replica containers** of the app are run
+- Each container runs **one uvicorn process** (default single worker; compose uses `--reload`)
 - Nginx handles the traffic to each of these containers
-<br>
 
-- Cookie based routing cannot be used to distinguish between **multiple workers in same container**
-- There's a commented out image in `docker-compose.yml` with 4 workers that can be used to verify that PubSub systems do not have that limitation.
+> **Note:** Comment out `app1`/`app2`/`app3` (and nginx) and enable the commented `app` service in `docker-compose.yml` — one container with **4 uvicorn workers**. Sticky will not work and WS delivery is not guaranteed for Sticky→WS / HTTP→WS paths: sticky routing is done by **Nginx between containers**, not between workers inside the same service. Redis pub/sub still delivers, which is why that path remains reliable.
 
 ### Nginx
 
 See [nginx.conf](https://github.com/kirtimukh/HTTPSticky/blob/main/nginx.conf)
 
-- **Load balancing** based on the **cookie** result in **sticky sessions**.
-- For cases (like first page load) where the sticky cookie is missing **Round Robin is used as fallback**.
-- **Without this fallback** all requests without the cookie will be routed to the same container.
+- **Load balancing** via `hash $cookie_StickyStr consistent` — same cookie value always maps to the same upstream.
+- For cases (like first page load) where the sticky cookie is missing **round-robin is used as fallback**.
+- **Without this fallback** all requests without the cookie will be routed to the same container (empty string hashes to one fixed peer).
+- Hashing is **not** issuer affinity: a cookie set by `app-1` may land on `app-2` or `app-3`. Sticky→WS still works because the **WS upgrade used the same cookie**, so HTTP and WS share one hash target.
 
 ### App flow - initial page load
 
 See [sample logs](https://github.com/kirtimukh/HTTPSticky/blob/main/records.log)
 
-- Browser requests `index.html`.
+- Browser requests `index.html` (no cookie yet → round robin).
 - FastAPI sets custom `StickyStr` cookie and returns `HTMLResponse`.
 - Browser receives the html page. The `StickyStr` is also saved in session JS.
-- **WebSocket connection is made** using the same cookie, Nginx ensures that connection is made with the same container that emitted the cookie.
-- After connection, the **cookie is removed** from `document` *to simulate non-sticky behaviour*
+- **WebSocket connection is made** with that cookie; Nginx hashes it to a fixed upstream (the WS home). That may differ from the instance that set the cookie.
+- After connection, the **cookie is removed** from `document` *to simulate non-sticky behaviour*. On reconnect, JS **restores `StickyStr`** before opening WS so the hash target (WS home) stays stable.
 <br>
 
-- Buttons that mention 'sticky' **adds the saved StickyStr** to `document.cookie` before making the request.
+- Buttons that mention 'sticky' **add the saved StickyStr** to `document.cookie` before making the request.
 - All other http requests are made **without StickyStr** and are round-robined by nginx.
 - This is for demonstration only.
-<br>
-
-- Requests made with cookie generated by APP_1 does not necessarily reach APP_1 : for that cookie-container map has to be provided to load balancer.
 
 ```text
 ┌──────────────┐  http (dashed)   ┌────────────────────────────┐
@@ -140,6 +124,6 @@ See [sample logs](https://github.com/kirtimukh/HTTPSticky/blob/main/records.log)
                          └──────────┬───────────┴──────────┬───────────┘
                                     ▼                      ▼
                               ┌──────────────────────────────────┐
-                              │         Redis  ·  pubsub         │
+                              │         Redis  ·  pub/sub        │
                               └──────────────────────────────────┘
 ```
