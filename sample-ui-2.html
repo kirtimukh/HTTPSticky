@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>HTTPSticky — Graph + History</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #e8eef4;
+      --bg-panel: #f4f7fa;
+      --bg-elevated: #ffffff;
+      --bg-soft: #e2e9f0;
+      --bg-dock: #f0f4f8;
+      --border: #c8d3de;
+      --border-strong: #a8b8c8;
+      --text: #1a2430;
+      --text-muted: #5a6b7c;
+      --http: #1f9a8a;
+      --http-dim: rgba(31, 154, 138, 0.12);
+      --wss: #c4842a;
+      --wss-dim: rgba(196, 132, 42, 0.12);
+      --sticky: #3a7fd4;
+      --pub: #3a7fd4;
+      --cookie: #8b5fd4;
+      --danger: #c45c5c;
+      --ok: #2fa86a;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --footer-h: calc(2rem + var(--safe-bottom));
+      --radius: 12px;
+      --font: "DM Sans", system-ui, sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+      --drawer-w: min(420px, 100vw);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font);
+      background:
+        radial-gradient(120% 80% at 10% -10%, #d4e2ef 0%, transparent 55%),
+        radial-gradient(90% 60% at 100% 0%, #d8ebe6 0%, transparent 45%),
+        var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app {
+      height: calc(100dvh - var(--footer-h));
+      max-height: calc(100dvh - var(--footer-h));
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+    }
+
+    /* —— Header (app + drawer) —— */
+    header,
+    .drawer-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.65rem;
+      padding: 0.65rem 0.85rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(244, 247, 250, 0.92);
+      backdrop-filter: blur(10px);
+      flex-shrink: 0;
+    }
+
+    header { z-index: 2; }
+
+    .brand { min-width: 0; }
+
+    .brand h1,
+    .drawer-head h2 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem 0.6rem;
+      margin-top: 0.15rem;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
+    .meta strong { color: var(--text); font-weight: 500; }
+
+    .history-btn,
+    .drawer-close {
+      appearance: none;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      min-height: 2rem;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--bg-elevated);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-family: var(--mono);
+      letter-spacing: 0.02em;
+      padding: 0.42rem 0.7rem;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+
+    .history-btn:hover,
+    .drawer-close:hover {
+      background: var(--bg-soft);
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+
+    .history-btn:focus-visible,
+    .drawer-close:focus-visible {
+      outline: 2px solid var(--sticky);
+      outline-offset: 2px;
+    }
+
+    .history-count {
+      display: inline-grid;
+      place-items: center;
+      min-width: 1.25rem;
+      height: 1.25rem;
+      padding: 0 0.3rem;
+      border-radius: 999px;
+      background: var(--bg-soft);
+      font-size: 0.62rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .history-count.has-items {
+      background: var(--sticky);
+      color: #fff;
+    }
+
+    /* —— Workspace —— */
+    .workspace {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      overflow: hidden;
+    }
+
+    .content {
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-panel);
+      gap: 0;
+    }
+
+    /* —— Graphical stage —— */
+    .stage-wrap {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      margin: 0.5rem 0.65rem 0.35rem;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(236, 242, 247, 0.98)),
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 27px,
+          rgba(168, 184, 200, 0.28) 27px,
+          rgba(168, 184, 200, 0.28) 28px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 27px,
+          rgba(168, 184, 200, 0.28) 27px,
+          rgba(168, 184, 200, 0.28) 28px
+        );
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .stage-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse 50% 60% at 50% 50%, transparent 40%, rgba(200, 214, 226, 0.55) 100%);
+    }
+
+    svg#diagram {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+    }
+
+    .edge {
+      fill: none;
+      stroke: var(--border-strong);
+      stroke-width: 1.6;
+      opacity: 0.45;
+      transition: opacity 0.25s;
+    }
+
+    .edge.tunnel {
+      stroke: var(--wss);
+      stroke-dasharray: 5 7;
+      opacity: 0.35;
+    }
+
+    .stage-wrap.animating .edge { opacity: 0.18; }
+    .stage-wrap.animating .edge.tunnel { opacity: 0.22; }
+
+    .trail {
+      fill: none;
+      stroke-width: 3.8;
+      stroke-linecap: round;
+      opacity: 0.92;
+      filter: drop-shadow(0 0 5px currentColor);
+    }
+
+    .packet-chip {
+      filter: drop-shadow(0 2px 6px rgba(26, 36, 48, 0.22));
+    }
+
+    .node .shell {
+      fill: var(--bg-elevated);
+      stroke: var(--border-strong);
+      stroke-width: 1.5;
+      transition: stroke 0.2s, fill 0.2s, filter 0.2s;
+    }
+
+    .node .nlabel {
+      fill: var(--text);
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 600;
+    }
+
+    .node.role-ws .shell {
+      stroke: var(--wss);
+    }
+
+    .node.active .shell {
+      fill: var(--bg-soft);
+      stroke: var(--text);
+      filter: drop-shadow(0 0 10px rgba(58, 127, 212, 0.28));
+    }
+
+    .node.skipped .shell {
+      stroke: var(--border);
+      opacity: 0.55;
+    }
+
+    .node.miss .shell {
+      stroke: var(--danger);
+      fill: rgba(196, 92, 92, 0.12);
+    }
+
+    .tunnel-label {
+      fill: var(--wss);
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      opacity: 0.75;
+    }
+
+    .sticky-mark {
+      fill: var(--cookie);
+      stroke: none;
+    }
+
+    /* —— Live exchange (text-mode style under graph) —— */
+    .live-panel {
+      flex-shrink: 0;
+      max-height: 38%;
+      min-height: 0;
+      margin: 0 0.65rem 0.45rem;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .live-panel-label {
+      font-family: var(--mono);
+      font-size: 0.55rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 0.1rem 0.3rem;
+      flex-shrink: 0;
+    }
+
+    .live-exchange {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .live-exchange:empty::before {
+      content: "Run an action — path animates above, messages appear here.";
+      display: block;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      padding: 0.55rem 0.65rem;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .live-exchange .flow {
+      margin-bottom: 0;
+      animation: rise 0.28s ease-out;
+    }
+
+    /* —— Shared message / flow styles —— */
+    .flow {
+      margin-bottom: 0.7rem;
+      animation: rise 0.28s ease-out;
+    }
+
+    .flow[hidden] { display: none; }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .flow-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.5rem 0.75rem;
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 0.35rem;
+      padding: 0.32rem 0.5rem;
+      border-radius: 6px;
+      background: var(--bg-soft);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+
+    .flow-tag {
+      flex-shrink: 0;
+      color: var(--text);
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .flow-meta {
+      flex: 1;
+      min-width: 0;
+      text-align: right;
+      font-size: 0.58rem;
+      line-height: 1.3;
+      color: var(--text-muted);
+      word-break: break-word;
+    }
+
+    .flow-meta .sticky-used { color: var(--sticky); }
+
+    .pair {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--bg-elevated);
+    }
+
+    .flow.http-paired .pair { border-left: 3px solid var(--http); }
+    .flow.wss-paired .pair { border-left: 3px solid var(--wss); }
+
+    .msg {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.3rem 0.5rem;
+      padding: 0.5rem 0.65rem;
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+
+    .msg + .msg { border-top: 1px solid var(--border); }
+
+    .msg .dir {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding-top: 0.15rem;
+      white-space: nowrap;
+    }
+
+    .msg.out .dir { color: var(--text-muted); }
+    .msg.in.http .dir { color: var(--http); }
+    .msg.in.wss .dir { color: var(--wss); }
+
+    .msg .body { word-break: break-word; }
+    .msg .body .pid {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.45rem;
+    }
+
+    .lane {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-elevated);
+      overflow: hidden;
+    }
+
+    .lane.http { border-left: 3px solid var(--http); }
+    .lane.wss { border-left: 3px solid var(--wss); }
+
+    .lane-label {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 0.28rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      font-weight: 500;
+    }
+
+    .lane.http .lane-label { color: var(--http); background: var(--http-dim); }
+    .lane.wss .lane-label { color: var(--wss); background: var(--wss-dim); }
+
+    .pending .lane.wss {
+      border-style: dashed;
+      opacity: 0.75;
+    }
+
+    .pending-note {
+      padding: 0.5rem 0.65rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .miss .lane.wss {
+      border-color: var(--danger);
+      border-left-color: var(--danger);
+    }
+
+    /* —— History drawer —— */
+    .drawer-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: var(--footer-h);
+      background: rgba(26, 36, 48, 0.28);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.22s ease, visibility 0.22s;
+      z-index: 40;
+    }
+
+    .drawer-backdrop.open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: var(--footer-h);
+      width: var(--drawer-w);
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border-strong);
+      box-shadow: -12px 0 40px rgba(26, 36, 48, 0.12);
+      display: flex;
+      flex-direction: column;
+      z-index: 50;
+      transform: translateX(100%);
+      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .drawer.open { transform: translateX(0); }
+
+    .filters {
+      display: flex;
+      gap: 0.35rem;
+      padding: 0.5rem 0.85rem 0.45rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex-shrink: 0;
+    }
+
+    .filters::-webkit-scrollbar { display: none; }
+
+    .filter-chip {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.68rem;
+      font-weight: 500;
+      padding: 0.28rem 0.55rem;
+      border-radius: 999px;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+    }
+
+    .filter-chip[aria-pressed="true"] {
+      color: var(--text);
+      border-color: #8aa0b4;
+      background: var(--bg-elevated);
+    }
+
+    .filter-chip[aria-pressed="false"] { opacity: 0.4; }
+
+    .feed {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 0.2rem 0.85rem 0.85rem;
+      scroll-behavior: smooth;
+      overscroll-behavior: contain;
+    }
+
+    .feed:empty::before {
+      content: "No exchanges yet. Actions you run will collect here.";
+      display: block;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      line-height: 1.45;
+      padding: 1rem 0.15rem;
+    }
+
+    /* —— Dock —— */
+    .dock {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      background: var(--bg-dock);
+      border-top: 1px solid var(--border-strong);
+      box-shadow: 0 -6px 22px rgba(26, 36, 48, 0.08);
+      padding: 0.45rem 0.65rem 0.5rem;
+      z-index: 3;
+      flex-shrink: 0;
+    }
+
+    /* —— Footer —— */
+    footer {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: var(--footer-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0 0.85rem;
+      padding-bottom: var(--safe-bottom);
+      border-top: 1px solid var(--border);
+      background: rgba(244, 247, 250, 0.97);
+      backdrop-filter: blur(10px);
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      color: var(--text-muted);
+      z-index: 60;
+      box-sizing: border-box;
+    }
+
+    footer strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .action-desc {
+      min-height: 2.4rem;
+      margin-bottom: 0.4rem;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-soft);
+      font-size: 0.72rem;
+      font-weight: 400;
+      line-height: 1.4;
+      color: var(--text-muted);
+    }
+
+    .action-desc:empty::before {
+      content: "Tap i on an action for details.";
+      color: var(--text-muted);
+      opacity: 0.75;
+    }
+
+    .action-desc.has-desc {
+      color: var(--text);
+      border-color: var(--border-strong);
+      background: var(--bg-elevated);
+    }
+
+    .composer {
+      display: flex;
+      gap: 0.4rem;
+      align-items: stretch;
+    }
+
+    .composer input {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-elevated);
+      color: var(--text);
+      border-radius: 9px;
+      padding: 0.45rem 0.65rem;
+      font: inherit;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .composer input:focus { border-color: #6a8aa8; }
+    .composer input::placeholder { color: var(--text-muted); }
+
+    .action-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .group-label {
+      font-family: var(--mono);
+      font-size: 0.55rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding-left: 0.1rem;
+    }
+
+    .group-label.paired { color: var(--http); }
+    .group-label.split { color: var(--sticky); }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.3rem;
+    }
+
+    .action-wrap {
+      position: relative;
+      display: flex;
+      align-items: stretch;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-elevated);
+      overflow: visible;
+    }
+
+    .action-wrap[data-path="http-only"],
+    .action-wrap[data-path="http-sticky"] { border-left: 2px solid var(--http); }
+
+    .action-wrap[data-path="ws-only"] { border-left: 2px solid var(--wss); }
+
+    .action-wrap[data-path="with-redis"],
+    .action-wrap[data-path="not-sticky"],
+    .action-wrap[data-path="sticky"] { border-left: 2px solid var(--sticky); }
+
+    .action {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.68rem;
+      font-weight: 600;
+      line-height: 1.2;
+      text-align: left;
+      padding: 0.4rem 0.2rem 0.4rem 0.45rem;
+      border-radius: 8px 0 0 8px;
+      cursor: pointer;
+      flex: 1;
+      min-width: 0;
+      transition: background 0.12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .action:active { background: var(--bg-soft); }
+
+    .action:focus-visible {
+      background: var(--bg-soft);
+      outline: none;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .action:hover:not(.hover-lock) {
+        background: var(--bg-soft);
+      }
+    }
+
+    .action[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+    .action .label { letter-spacing: -0.01em; }
+
+    .info-btn {
+      appearance: none;
+      border: none;
+      border-left: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      width: 1.45rem;
+      flex-shrink: 0;
+      font: inherit;
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      font-weight: 700;
+      font-style: italic;
+      line-height: 1;
+      padding: 0;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      border-radius: 0 8px 8px 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .info-btn:focus-visible {
+      color: var(--text);
+      background: var(--bg-soft);
+      outline: none;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .info-btn:hover:not(.hover-lock) {
+        color: var(--text);
+        background: var(--bg-soft);
+      }
+    }
+
+    .info-btn[aria-expanded="true"] {
+      color: var(--sticky);
+    }
+
+    .info-btn > i {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+      font-style: normal;
+    }
+
+    @media (min-width: 480px) {
+      header,
+      .drawer-head { padding: 0.75rem 1.15rem 0.55rem; }
+      .filters { padding-left: 1.15rem; padding-right: 1.15rem; }
+      .feed { padding-left: 1.15rem; padding-right: 1.15rem; }
+      .dock { padding-left: 1.15rem; padding-right: 1.15rem; }
+      footer { padding-left: 1.15rem; padding-right: 1.15rem; }
+      .stage-wrap,
+      .live-panel { margin-left: 1rem; margin-right: 1rem; }
+    }
+
+    @media (min-width: 900px) {
+      .app {
+        max-width: 1100px;
+        margin: 0 auto;
+        border-left: 1px solid var(--border);
+        border-right: 1px solid var(--border);
+      }
+
+      .brand h1,
+      .drawer-head h2 { font-size: 1.15rem; }
+
+      .split {
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        align-items: stretch;
+      }
+
+      .live-panel .split {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <h1>HTTPSticky</h1>
+        <div class="meta">
+          <span>page: <strong id="meta-page">App_2</strong></span>
+          <span>ws: <strong id="meta-ws">App_2</strong></span>
+          <span>sticky: <strong id="meta-sticky">App_2</strong></span>
+          <span>client: <strong>c7f2a1</strong></span>
+        </div>
+      </div>
+      <button type="button" class="history-btn" id="history-open" aria-controls="history-drawer" aria-expanded="false">
+        History
+        <span class="history-count" id="history-count" aria-hidden="true">0</span>
+      </button>
+    </header>
+
+    <div class="workspace">
+      <div class="content">
+        <div class="stage-wrap" id="stage">
+          <svg id="diagram" viewBox="0 0 1100 660" role="img" aria-label="System topology: browser, nginx, three app instances, redis" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <filter id="softglow" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur stdDeviation="2.2" result="b" />
+                <feMerge>
+                  <feMergeNode in="b" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <g id="edges"></g>
+            <g id="annotations"></g>
+            <g id="nodes"></g>
+            <g id="trails"></g>
+            <g id="packets"></g>
+            <g id="fx"></g>
+          </svg>
+        </div>
+
+        <div class="live-panel" aria-label="Current exchange">
+          <div class="live-panel-label">Current exchange</div>
+          <div id="live-exchange" class="live-exchange" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <aside class="dock" aria-label="Send actions">
+        <div class="action-desc" id="action-desc" aria-live="polite"></div>
+        <div class="composer">
+          <input id="msg" type="text" maxlength="140" placeholder="Message…" value="Pebblejoy Chipperdew" autocomplete="off" />
+        </div>
+        <div class="action-groups">
+          <div class="action-group">
+            <div class="group-label paired">Paired · same channel</div>
+            <div class="actions">
+              <div class="action-wrap" data-path="http-only">
+                <button type="button" class="action" data-path="http-only"><span class="label">HTTP RR</span></button>
+                <button type="button" class="info-btn" aria-label="About HTTP Round Robin" aria-expanded="false" data-info="http-only">i<i>Stateless HTTP. Nginx round-robins to any instance; reply returns over HTTP.</i></button>
+              </div>
+              <div class="action-wrap" data-path="http-sticky">
+                <button type="button" class="action" data-path="http-sticky"><span class="label">HTTP Sticky</span></button>
+                <button type="button" class="info-btn" aria-label="About HTTP Sticky" aria-expanded="false" data-info="http-sticky">i<i>Sticky cookie pins every request to the instance that issued it (App_2).</i></button>
+              </div>
+              <div class="action-wrap" data-path="ws-only">
+                <button type="button" class="action" data-path="ws-only"><span class="label">WS Only</span></button>
+                <button type="button" class="info-btn" aria-label="About WebSockets Only" aria-expanded="false" data-info="ws-only">i<i>Travels the long-lived WS tunnel straight to App_2 and echoes back.</i></button>
+              </div>
+            </div>
+          </div>
+          <div class="action-group">
+            <div class="group-label split">Split · HTTP → WSS</div>
+            <div class="actions">
+              <div class="action-wrap" data-path="with-redis">
+                <button type="button" class="action" data-path="with-redis"><span class="label">Redis Queue</span></button>
+                <button type="button" class="info-btn" aria-label="About Publish to Queue" aria-expanded="false" data-info="with-redis">i<i>Any instance publishes to Redis; App_2 (WS owner) delivers to you.</i></button>
+              </div>
+              <div class="action-wrap" data-path="not-sticky">
+                <button type="button" class="action" data-path="not-sticky"><span class="label">HTTP→WS</span></button>
+                <button type="button" class="info-btn" aria-label="About Non-sticky HTTP to WS" aria-expanded="false" data-info="not-sticky">i<i>No cookie. Only works if round-robin happens to hit App_2.</i></button>
+              </div>
+              <div class="action-wrap" data-path="sticky">
+                <button type="button" class="action" data-path="sticky"><span class="label">Sticky→WS</span></button>
+                <button type="button" class="info-btn" aria-label="About Sticky HTTP to WS" aria-expanded="false" data-info="sticky">i<i>Sticky cookie routes to App_2, which delivers over its in-memory WS.</i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <footer>
+    <span><strong>HTTPSticky</strong> · sticky sessions across HTTP &amp; WebSockets</span>
+    <span>sample ui</span>
+  </footer>
+
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="drawer" id="history-drawer" aria-label="Exchange history" aria-hidden="true">
+    <div class="drawer-head">
+      <h2>History</h2>
+      <button type="button" class="drawer-close" id="history-close">Close</button>
+    </div>
+    <div class="filters" role="toolbar" aria-label="Filter by path">
+      <button type="button" class="filter-chip" data-filter="all" aria-pressed="true">All</button>
+      <button type="button" class="filter-chip" data-filter="http-only" aria-pressed="true">HTTP RR</button>
+      <button type="button" class="filter-chip" data-filter="http-sticky" aria-pressed="true">HTTP Sticky</button>
+      <button type="button" class="filter-chip" data-filter="ws-only" aria-pressed="true">WS Only</button>
+      <button type="button" class="filter-chip" data-filter="with-redis" aria-pressed="true">Redis Queue</button>
+      <button type="button" class="filter-chip" data-filter="not-sticky" aria-pressed="true">HTTP→WS</button>
+      <button type="button" class="filter-chip" data-filter="sticky" aria-pressed="true">Sticky→WS</button>
+    </div>
+    <div id="feed" class="feed" aria-live="polite"></div>
+  </aside>
+
+  <script>
+    /**
+     * Graph-primary sample UI — path animation + live text exchange.
+     * Textual feed lives in History drawer only.
+     * Nodes are text labels (no SVG icons).
+     */
+    const PAGE_SERVER = "App_2";
+    const WS_HOME_LABEL = "App_2";
+    const STICKY_REF = "App_2";
+    const WS_HOME = "app2";
+    const CLIENT_ID = "c7f2a1";
+
+    const PATHS = {
+      "http-only": {
+        label: "HTTP RR",
+        kind: "paired",
+        channel: "http",
+        route: "/submit/{id}",
+      },
+      "http-sticky": {
+        label: "HTTP Sticky",
+        kind: "paired",
+        channel: "http",
+        route: "/submit/{id}",
+        sticky: true,
+      },
+      "ws-only": {
+        label: "WS Only",
+        kind: "paired",
+        channel: "wss",
+        route: "wss echo",
+      },
+      "with-redis": {
+        label: "Redis Queue",
+        kind: "split",
+        route: "/with-redis/{id}",
+        guaranteed: true,
+      },
+      "not-sticky": {
+        label: "HTTP→WS",
+        kind: "split",
+        route: "/without-redis/{id}",
+        guaranteed: false,
+      },
+      "sticky": {
+        label: "Sticky→WS",
+        kind: "split",
+        route: "/without-redis/{id}",
+        sticky: true,
+        guaranteed: true,
+      },
+    };
+
+    const WORDS = ["Pebblejoy", "Chipperdew", "Marzipip", "Jollywink", "Sunnydrop", "Mossflute"];
+    const APPS = ["App_1", "App_2", "App_3"];
+    const APP_ID = { App_1: "app1", App_2: "app2", App_3: "app3" };
+
+    const feed = document.getElementById("feed");
+    const liveExchange = document.getElementById("live-exchange");
+    const input = document.getElementById("msg");
+    const historyCount = document.getElementById("history-count");
+    const historyOpen = document.getElementById("history-open");
+    const historyClose = document.getElementById("history-close");
+    const drawer = document.getElementById("history-drawer");
+    const backdrop = document.getElementById("drawer-backdrop");
+
+    const filterState = Object.fromEntries(Object.keys(PATHS).map((k) => [k, true]));
+    filterState.all = true;
+
+    let historyItems = 0;
+    let graphBusy = false;
+
+    function randomText() {
+      const a = WORDS[Math.floor(Math.random() * WORDS.length)];
+      const b = WORDS[Math.floor(Math.random() * WORDS.length)];
+      return `${a} ${b}`;
+    }
+
+    function pickApp(prefer) {
+      if (prefer) return prefer;
+      return APPS[Math.floor(Math.random() * APPS.length)];
+    }
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function flowHeadHtml(meta) {
+      const stickyHtml = meta.sticky
+        ? '<span class="sticky-used">sticky-str used</span>'
+        : "sticky-str not used";
+      return `
+        <div class="flow-head">
+          <span class="flow-tag">${esc(meta.label)}</span>
+          <span class="flow-meta">${esc(meta.route)} · ${stickyHtml}</span>
+        </div>
+      `;
+    }
+
+    function bumpHistoryCount() {
+      historyItems += 1;
+      historyCount.textContent = String(historyItems);
+      historyCount.classList.toggle("has-items", historyItems > 0);
+    }
+
+    /* —— History drawer —— */
+    function setHistoryOpen(open) {
+      drawer.classList.toggle("open", open);
+      drawer.setAttribute("aria-hidden", open ? "false" : "true");
+      historyOpen.setAttribute("aria-expanded", open ? "true" : "false");
+      backdrop.classList.toggle("open", open);
+      backdrop.hidden = !open;
+      if (open) {
+        feed.scrollTop = feed.scrollHeight;
+        historyClose.focus();
+      }
+    }
+
+    historyOpen.addEventListener("click", () => setHistoryOpen(true));
+    historyClose.addEventListener("click", () => setHistoryOpen(false));
+    backdrop.addEventListener("click", () => setHistoryOpen(false));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && drawer.classList.contains("open")) setHistoryOpen(false);
+    });
+
+    /* —— Info (i) —— */
+    const actionDesc = document.getElementById("action-desc");
+
+    function closeAllInfo() {
+      document.querySelectorAll(".info-btn").forEach((b) => b.setAttribute("aria-expanded", "false"));
+      actionDesc.textContent = "";
+      actionDesc.classList.remove("has-desc");
+    }
+
+    function showInfoFromBtn(btn) {
+      const info = btn.querySelector("i");
+      const text = info ? info.textContent.trim() : "";
+      actionDesc.textContent = text;
+      actionDesc.classList.toggle("has-desc", Boolean(text));
+      document.querySelectorAll(".info-btn").forEach((b) => {
+        b.setAttribute("aria-expanded", b === btn ? "true" : "false");
+      });
+    }
+
+    function showInfoForPath(path) {
+      const infoBtn = document.querySelector(`.info-btn[data-info="${path}"]`);
+      if (infoBtn) showInfoFromBtn(infoBtn);
+    }
+
+    document.querySelectorAll(".info-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const wasOpen = btn.getAttribute("aria-expanded") === "true";
+        if (wasOpen) {
+          closeAllInfo();
+        } else {
+          showInfoFromBtn(btn);
+        }
+      });
+    });
+
+    /* —— Filters (history) —— */
+    function applyFilters() {
+      feed.querySelectorAll(".flow").forEach((el) => {
+        el.hidden = !filterState[el.dataset.path];
+      });
+    }
+
+    document.querySelectorAll(".filter-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const key = chip.dataset.filter;
+        if (key === "all") {
+          const turnOn = chip.getAttribute("aria-pressed") !== "true"
+            || Object.keys(PATHS).some((k) => !filterState[k]);
+          Object.keys(PATHS).forEach((k) => { filterState[k] = turnOn; });
+          filterState.all = turnOn;
+          document.querySelectorAll(".filter-chip").forEach((c) => {
+            c.setAttribute("aria-pressed", turnOn ? "true" : "false");
+          });
+        } else {
+          filterState[key] = !filterState[key];
+          chip.setAttribute("aria-pressed", filterState[key] ? "true" : "false");
+          const allOn = Object.keys(PATHS).every((k) => filterState[k]);
+          filterState.all = allOn;
+          document.querySelector('.filter-chip[data-filter="all"]')
+            .setAttribute("aria-pressed", allOn ? "true" : "false");
+        }
+        applyFilters();
+      });
+    });
+
+    /* —— Message HTML builders (shared by live + history) —— */
+    function pairedHtml({ path, text, channel, sticky, app }) {
+      const meta = PATHS[path];
+      const replyApp = app || (sticky || channel === "wss" ? WS_HOME_LABEL : pickApp());
+      return {
+        app: replyApp,
+        html: `
+          ${flowHeadHtml(meta)}
+          <div class="pair">
+            <div class="msg out">
+              <span class="dir">you</span>
+              <span class="body">${esc(text)}</span>
+            </div>
+            <div class="msg in ${channel}">
+              <span class="dir">${channel} ←</span>
+              <span class="body">
+                <span class="pid">[${esc(replyApp)}]</span>
+                ${esc(text)}
+              </span>
+            </div>
+          </div>
+        `,
+        channelClass: channel === "wss" ? "wss-paired" : "http-paired",
+      };
+    }
+
+    function splitHtml({ path, text, sticky, guaranteed, httpApp }) {
+      const meta = PATHS[path];
+      const hit = httpApp || (sticky ? WS_HOME_LABEL : pickApp());
+      const willDeliver = guaranteed || hit === WS_HOME_LABEL;
+      const wsApp = willDeliver ? WS_HOME_LABEL : null;
+
+      let body = `
+        ${flowHeadHtml(meta)}
+        <div class="split ${willDeliver ? "" : "miss"}">
+          <div class="lane http">
+            <div class="lane-label">HTTP action</div>
+            <div class="msg out">
+              <span class="dir">you</span>
+              <span class="body">${esc(text)}</span>
+            </div>
+            <div class="msg in http">
+              <span class="dir">http ←</span>
+              <span class="body">
+                <span class="pid">[${esc(hit)}]</span>
+                ${guaranteed
+                  ? "publishing to redis"
+                  : willDeliver
+                    ? "replying with ws"
+                    : `no connection to ${CLIENT_ID}`}
+              </span>
+            </div>
+          </div>
+          <div class="lane wss" data-ws-lane>
+            <div class="lane-label">WSS response</div>
+            ${willDeliver
+              ? `<div class="msg in wss">
+                   <span class="dir">wss ←</span>
+                   <span class="body">
+                     <span class="pid">[${esc(wsApp)}]</span>
+                     ${esc(text)}
+                   </span>
+                 </div>`
+              : `<p class="pending-note">No WSS delivery — request hit ${esc(hit)}, WS lives on ${WS_HOME_LABEL}.</p>`}
+          </div>
+        </div>
+      `;
+
+      return { httpApp: hit, willDeliver, html: body, pendingRedis: willDeliver && path === "with-redis" };
+    }
+
+    function appendToHistory(html, path, extraClass) {
+      const wrap = document.createElement("article");
+      wrap.className = "flow" + (extraClass ? " " + extraClass : "");
+      wrap.dataset.path = path;
+      wrap.innerHTML = html;
+      wrap.hidden = !filterState[path];
+      feed.appendChild(wrap);
+      bumpHistoryCount();
+      return wrap;
+    }
+
+    function showLive(html, path, extraClass) {
+      liveExchange.innerHTML = "";
+      const wrap = document.createElement("article");
+      wrap.className = "flow" + (extraClass ? " " + extraClass : "");
+      wrap.dataset.path = path;
+      wrap.innerHTML = html;
+      liveExchange.appendChild(wrap);
+      return wrap;
+    }
+
+    function resolveExchange(path, text) {
+      const meta = PATHS[path];
+      if (meta.kind === "paired") {
+        const built = pairedHtml({
+          path,
+          text,
+          channel: meta.channel,
+          sticky: !!meta.sticky,
+        });
+        return {
+          kind: "paired",
+          path,
+          text,
+          app: built.app,
+          channel: meta.channel,
+          sticky: !!meta.sticky,
+          html: built.html,
+          channelClass: built.channelClass,
+        };
+      }
+
+      const built = splitHtml({
+        path,
+        text,
+        sticky: !!meta.sticky,
+        guaranteed: !!meta.guaranteed,
+      });
+      return {
+        kind: "split",
+        path,
+        text,
+        sticky: !!meta.sticky,
+        guaranteed: !!meta.guaranteed,
+        httpApp: built.httpApp,
+        willDeliver: built.willDeliver,
+        pendingRedis: built.pendingRedis,
+        html: built.html,
+      };
+    }
+
+    async function revealRedisDelivery(liveEl, histEl, text) {
+      const apply = (root) => {
+        if (!root) return;
+        root.classList.add("pending");
+        const lane = root.querySelector("[data-ws-lane]");
+        if (!lane) return;
+        lane.innerHTML = `
+          <div class="lane-label">WSS response</div>
+          <p class="pending-note">waiting for subscriber…</p>
+        `;
+        setTimeout(() => {
+          root.classList.remove("pending");
+          lane.innerHTML = `
+            <div class="lane-label">WSS response</div>
+            <div class="msg in wss">
+              <span class="dir">wss ←</span>
+              <span class="body">
+                <span class="pid">[${WS_HOME_LABEL}]</span>
+                ${esc(text)}
+              </span>
+            </div>
+          `;
+        }, 700);
+      };
+      apply(liveEl);
+      apply(histEl);
+      await wait(700);
+    }
+
+    /* —— Graphical topology (text labels only) —— */
+    const SVGNS = "http://www.w3.org/2000/svg";
+    const svgEl = (t) => document.createElementNS(SVGNS, t);
+
+    const NODES = {
+      laptop: { x: 176, y: 330, w: 240, h: 100, label: "Your browser" },
+      nginx:  { x: 430, y: 330, w: 168, h: 100, label: "Nginx" },
+      app1:   { x: 700, y: 120, w: 168, h: 100, label: "App_1" },
+      app2:   { x: 700, y: 330, w: 168, h: 100, label: "App_2" },
+      app3:   { x: 700, y: 540, w: 168, h: 100, label: "App_3" },
+      redis:  { x: 960, y: 330, w: 168, h: 100, label: "Redis" },
+    };
+
+    const COLOR = { http: "#1f9a8a", ws: "#c4842a", pub: "#3a7fd4", cookie: "#8b5fd4", danger: "#c45c5c" };
+
+    const edgesLayer = document.getElementById("edges");
+    const nodesLayer = document.getElementById("nodes");
+    const trailsLayer = document.getElementById("trails");
+    const packetsLayer = document.getElementById("packets");
+    const annotationsLayer = document.getElementById("annotations");
+    const fxLayer = document.getElementById("fx");
+    const stage = document.getElementById("stage");
+
+    function anchor(id, side) {
+      const n = NODES[id], hx = n.w / 2, hy = n.h / 2;
+      if (side === "left") return { x: n.x - hx, y: n.y };
+      if (side === "right") return { x: n.x + hx, y: n.y };
+      if (side === "top") return { x: n.x, y: n.y - hy };
+      return { x: n.x, y: n.y + hy };
+    }
+
+    function line(fromId, fromSide, toId, toSide) {
+      const a = anchor(fromId, fromSide), b = anchor(toId, toSide);
+      return `M ${a.x} ${a.y} L ${b.x} ${b.y}`;
+    }
+
+    function tunnel(reverse) {
+      const a = anchor("laptop", "top"), b = anchor("app2", "top");
+      const cx = (a.x + b.x) / 2, cy = Math.min(a.y, b.y) - 185;
+      return reverse
+        ? `M ${b.x} ${b.y} Q ${cx} ${cy} ${a.x} ${a.y}`
+        : `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
+    }
+
+    function drawStaticEdges() {
+      const structural = [
+        line("laptop", "right", "nginx", "left"),
+        line("nginx", "right", "app1", "left"),
+        line("nginx", "right", "app2", "left"),
+        line("nginx", "right", "app3", "left"),
+        line("app1", "right", "redis", "left"),
+        line("app2", "right", "redis", "left"),
+        line("app3", "right", "redis", "left"),
+      ];
+      for (const d of structural) {
+        const p = svgEl("path");
+        p.setAttribute("class", "edge");
+        p.setAttribute("d", d);
+        edgesLayer.appendChild(p);
+      }
+      const t = svgEl("path");
+      t.setAttribute("class", "edge tunnel");
+      t.setAttribute("d", tunnel(false));
+      edgesLayer.appendChild(t);
+
+      /* Label sits just above the curve peak (not the control point) */
+      const ta = anchor("laptop", "top");
+      const tb = anchor("app2", "top");
+      const tcx = (ta.x + tb.x) / 2;
+      const tcy = Math.min(ta.y, tb.y) - 185;
+      const peakY = 0.25 * ta.y + 0.5 * tcy + 0.25 * tb.y;
+
+      const label = svgEl("text");
+      label.setAttribute("class", "tunnel-label");
+      label.setAttribute("text-anchor", "middle");
+      label.setAttribute("x", tcx);
+      label.setAttribute("y", peakY - 10);
+      label.textContent = "live WebSocket tunnel";
+      annotationsLayer.appendChild(label);
+    }
+
+    function drawNodes() {
+      for (const [id, n] of Object.entries(NODES)) {
+        const g = svgEl("g");
+        const isWsHome = id === WS_HOME;
+        g.setAttribute("class", "node" + (isWsHome ? " role-ws" : ""));
+        g.id = "node-" + id;
+        g.setAttribute("transform", `translate(${n.x},${n.y})`);
+
+        const shell = svgEl("rect");
+        shell.setAttribute("class", "shell");
+        shell.setAttribute("x", -n.w / 2);
+        shell.setAttribute("y", -n.h / 2);
+        shell.setAttribute("width", n.w);
+        shell.setAttribute("height", n.h);
+        shell.setAttribute("rx", 12);
+        g.appendChild(shell);
+
+        if (isWsHome) {
+          const mark = svgEl("rect");
+          mark.setAttribute("class", "sticky-mark");
+          mark.setAttribute("x", n.w / 2 - 16);
+          mark.setAttribute("y", -n.h / 2 + 8);
+          mark.setAttribute("width", 10);
+          mark.setAttribute("height", 10);
+          mark.setAttribute("rx", 2);
+          g.appendChild(mark);
+        }
+
+        const t = svgEl("text");
+        t.setAttribute("class", "nlabel");
+        t.setAttribute("text-anchor", "middle");
+        t.setAttribute("dominant-baseline", "middle");
+        t.setAttribute("y", 1);
+        t.textContent = n.label;
+        g.appendChild(t);
+
+        nodesLayer.appendChild(g);
+      }
+    }
+
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const ease = (t) => 1 - Math.pow(1 - t, 2.4);
+
+    function animateAlong(d, color, duration = 780) {
+      return new Promise((resolve) => {
+        const trail = svgEl("path");
+        trail.setAttribute("class", "trail");
+        trail.setAttribute("d", d);
+        trail.setAttribute("stroke", color);
+        trail.style.color = color;
+        trailsLayer.appendChild(trail);
+
+        const len = trail.getTotalLength();
+        trail.style.strokeDasharray = String(len);
+        trail.style.strokeDashoffset = String(len);
+
+        const chip = svgEl("g");
+        chip.setAttribute("class", "packet-chip");
+        packetsLayer.appendChild(chip);
+
+        const body = svgEl("circle");
+        body.setAttribute("r", 7);
+        body.setAttribute("fill", color);
+        body.setAttribute("stroke", "#ffffff");
+        body.setAttribute("stroke-width", "2");
+        chip.appendChild(body);
+
+        const start = performance.now();
+        function frame(now) {
+          const t = Math.min(1, (now - start) / duration);
+          const e = ease(t);
+          const p = trail.getPointAtLength(e * len);
+          chip.setAttribute("transform", `translate(${p.x},${p.y})`);
+          trail.style.strokeDashoffset = String(len - e * len);
+          if (t < 1) requestAnimationFrame(frame);
+          else setTimeout(() => { chip.remove(); resolve(); }, 120);
+        }
+        requestAnimationFrame(frame);
+      });
+    }
+
+    function pulse(ids) {
+      (ids || []).forEach((id) => document.getElementById("node-" + id)?.classList.add("active"));
+    }
+
+    function markSkipped(exceptId) {
+      ["app1", "app2", "app3"].forEach((id) => {
+        if (id !== exceptId) document.getElementById("node-" + id)?.classList.add("skipped");
+      });
+    }
+
+    function showCookieFx() {
+      const n = NODES.laptop;
+      const g = svgEl("g");
+      g.id = "cookie-fx";
+      const bg = svgEl("rect");
+      bg.setAttribute("x", n.x - 48);
+      bg.setAttribute("y", n.y - n.h / 2 - 28);
+      bg.setAttribute("width", 96);
+      bg.setAttribute("height", 18);
+      bg.setAttribute("rx", 9);
+      bg.setAttribute("fill", "rgba(139,95,212,0.14)");
+      bg.setAttribute("stroke", COLOR.cookie);
+      bg.setAttribute("stroke-width", "1");
+      const t = svgEl("text");
+      t.setAttribute("x", n.x);
+      t.setAttribute("y", n.y - n.h / 2 - 15);
+      t.setAttribute("text-anchor", "middle");
+      t.setAttribute("fill", COLOR.cookie);
+      t.setAttribute("font-family", "IBM Plex Mono, monospace");
+      t.setAttribute("font-size", "9");
+      t.setAttribute("font-weight", "600");
+      t.textContent = "StickyStr set";
+      g.appendChild(bg);
+      g.appendChild(t);
+      fxLayer.appendChild(g);
+    }
+
+    function clearStage() {
+      trailsLayer.innerHTML = "";
+      packetsLayer.innerHTML = "";
+      fxLayer.innerHTML = "";
+      document.querySelectorAll(".node").forEach((n) => n.classList.remove("active", "miss", "skipped"));
+      document.getElementById("node-" + WS_HOME)?.classList.add("active");
+      stage.classList.remove("animating");
+    }
+
+    function pickAppId(preferLabel) {
+      if (preferLabel && APP_ID[preferLabel]) return APP_ID[preferLabel];
+      return ["app1", "app2", "app3"][Math.floor(Math.random() * 3)];
+    }
+
+    function buildSteps(path, exchange) {
+      const { http: H, ws: W, pub: P } = COLOR;
+      switch (path) {
+        case "http-only": {
+          const app = pickAppId(exchange.app);
+          return {
+            outcome: "ok",
+            sticky: false,
+            steps: [
+              { d: line("laptop", "right", "nginx", "left"), color: H, nodes: ["nginx"] },
+              { d: line("nginx", "right", app, "left"), color: H, nodes: [app], skipOthers: app },
+              { d: line(app, "left", "nginx", "right"), color: H, nodes: ["nginx"] },
+              { d: line("nginx", "left", "laptop", "right"), color: H, nodes: ["laptop"] },
+            ],
+          };
+        }
+        case "http-sticky": {
+          return {
+            outcome: "ok",
+            sticky: true,
+            steps: [
+              { d: line("laptop", "right", "nginx", "left"), color: H, nodes: ["nginx"], cookie: true },
+              { d: line("nginx", "right", "app2", "left"), color: H, nodes: ["app2"], skipOthers: "app2" },
+              { d: line("app2", "left", "nginx", "right"), color: H, nodes: ["nginx"] },
+              { d: line("nginx", "left", "laptop", "right"), color: H, nodes: ["laptop"] },
+            ],
+          };
+        }
+        case "ws-only": {
+          return {
+            outcome: "ok",
+            sticky: false,
+            steps: [
+              { d: tunnel(false), color: W, nodes: ["app2"] },
+              { d: tunnel(true), color: W, nodes: ["laptop"] },
+            ],
+          };
+        }
+        case "with-redis": {
+          const app = pickAppId(exchange.httpApp);
+          return {
+            outcome: "ok",
+            sticky: false,
+            steps: [
+              { d: line("laptop", "right", "nginx", "left"), color: H, nodes: ["nginx"] },
+              { d: line("nginx", "right", app, "left"), color: H, nodes: [app], skipOthers: app },
+              { d: line(app, "right", "redis", "left"), color: P, nodes: ["redis"] },
+              { d: line("redis", "left", "app2", "right"), color: P, nodes: ["app2"] },
+              { d: tunnel(true), color: W, nodes: ["laptop"] },
+            ],
+          };
+        }
+        case "sticky": {
+          return {
+            outcome: "ok",
+            sticky: true,
+            steps: [
+              { d: line("laptop", "right", "nginx", "left"), color: H, nodes: ["nginx"], cookie: true },
+              { d: line("nginx", "right", "app2", "left"), color: H, nodes: ["app2"], skipOthers: "app2" },
+              { d: tunnel(true), color: W, nodes: ["laptop"] },
+            ],
+          };
+        }
+        case "not-sticky": {
+          const app = pickAppId(exchange.httpApp);
+          const steps = [
+            { d: line("laptop", "right", "nginx", "left"), color: H, nodes: ["nginx"] },
+            { d: line("nginx", "right", app, "left"), color: H, nodes: [app], skipOthers: app },
+          ];
+          if (app === WS_HOME) {
+            steps.push({ d: tunnel(true), color: W, nodes: ["laptop"] });
+            return { outcome: "ok", sticky: false, steps };
+          }
+          steps.push({ miss: true, node: app });
+          return { outcome: "fail", sticky: false, steps };
+        }
+      }
+    }
+
+    async function missStep(s) {
+      const g = document.getElementById("node-" + s.node);
+      g.classList.remove("active");
+      g.classList.add("miss");
+      const n = NODES[s.node];
+      const x = svgEl("text");
+      x.setAttribute("text-anchor", "middle");
+      x.setAttribute("x", n.x);
+      x.setAttribute("y", n.y - 6);
+      x.setAttribute("fill", COLOR.danger);
+      x.setAttribute("font-size", "28");
+      x.setAttribute("font-weight", "700");
+      x.setAttribute("font-family", "DM Sans, sans-serif");
+      x.setAttribute("filter", "url(#softglow)");
+      x.textContent = "✕";
+      packetsLayer.appendChild(x);
+
+      const note = svgEl("text");
+      note.setAttribute("text-anchor", "middle");
+      note.setAttribute("x", n.x);
+      note.setAttribute("y", n.y + 22);
+      note.setAttribute("fill", COLOR.danger);
+      note.setAttribute("font-family", "IBM Plex Mono, monospace");
+      note.setAttribute("font-size", "11");
+      note.setAttribute("font-weight", "600");
+      note.textContent = "no WS session";
+      packetsLayer.appendChild(note);
+      await wait(900);
+    }
+
+    async function runAction(path) {
+      if (graphBusy) return;
+      graphBusy = true;
+      document.querySelectorAll(".action").forEach((b) => (b.disabled = true));
+      showInfoForPath(path);
+
+      const text = input.value.trim() || randomText();
+      const exchange = resolveExchange(path, text);
+
+      /* Show messages immediately (live + history) */
+      const liveEl = showLive(exchange.html, path, exchange.channelClass || "");
+      const histEl = appendToHistory(exchange.html, path, exchange.channelClass || "");
+
+      if (exchange.pendingRedis) {
+        const stripWs = (root) => {
+          const lane = root.querySelector("[data-ws-lane]");
+          if (lane) {
+            lane.innerHTML = `
+              <div class="lane-label">WSS response</div>
+              <p class="pending-note">waiting for subscriber…</p>
+            `;
+            root.classList.add("pending");
+          }
+        };
+        stripWs(liveEl);
+        stripWs(histEl);
+      }
+
+      /* Animate path using the same app choice as the messages */
+      clearStage();
+      stage.classList.add("animating");
+      const { steps, sticky } = buildSteps(path, exchange);
+
+      if (sticky) showCookieFx();
+
+      for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        if (s.cookie) showCookieFx();
+        if (s.miss) {
+          await missStep(s);
+        } else {
+          await animateAlong(s.d, s.color, 780);
+          pulse(s.nodes);
+          if (s.skipOthers) markSkipped(s.skipOthers);
+        }
+        await wait(140);
+      }
+
+      if (exchange.pendingRedis) {
+        await revealRedisDelivery(liveEl, histEl, text);
+      }
+
+      stage.classList.remove("animating");
+      input.value = randomText();
+      graphBusy = false;
+      document.querySelectorAll(".action").forEach((b) => (b.disabled = false));
+    }
+
+    /* —— Shared actions —— */
+    function bindHoverLock(el) {
+      el.addEventListener("pointerup", () => {
+        el.classList.add("hover-lock");
+        el.blur();
+      });
+      el.addEventListener("pointerleave", () => el.classList.remove("hover-lock"));
+    }
+
+    document.querySelectorAll(".action").forEach((btn) => {
+      bindHoverLock(btn);
+      btn.addEventListener("click", () => runAction(btn.dataset.path));
+    });
+
+    document.querySelectorAll(".info-btn").forEach(bindHoverLock);
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        runAction("http-only");
+      }
+    });
+
+    /* —— Init —— */
+    document.getElementById("meta-page").textContent = PAGE_SERVER;
+    document.getElementById("meta-ws").textContent = WS_HOME_LABEL;
+    document.getElementById("meta-sticky").textContent = STICKY_REF;
+
+    drawStaticEdges();
+    drawNodes();
+    document.getElementById("node-" + WS_HOME).classList.add("active");
+
+    (function seedHistory() {
+      const a = resolveExchange("http-only", "Sunnydrop Marzipip");
+      appendToHistory(a.html, "http-only", a.channelClass);
+
+      const b = resolveExchange("ws-only", "Jollywink Pebblejoy");
+      appendToHistory(b.html, "ws-only", b.channelClass);
+
+      const miss = splitHtml({
+        path: "not-sticky",
+        text: "Chipperdew Mossflute",
+        sticky: false,
+        guaranteed: false,
+        httpApp: "App_1",
+      });
+      appendToHistory(miss.html, "not-sticky");
+
+      const stickyEx = splitHtml({
+        path: "sticky",
+        text: "Marzipip Sunnydrop",
+        sticky: true,
+        guaranteed: true,
+        httpApp: WS_HOME_LABEL,
+      });
+      appendToHistory(stickyEx.html, "sticky");
+
+      feed.scrollTop = feed.scrollHeight;
+    })();
+  </script>
+</body>
+</html>

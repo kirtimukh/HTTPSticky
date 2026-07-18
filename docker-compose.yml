@@ -1,6 +1,6 @@
 services:
   redis:
-    image: redis:latest
+    image: redis:8.6.4-alpine
     volumes:
       - ./redis_data:/data
     networks:
@@ -65,7 +65,7 @@ services:
       - internal
 
   nginx:
-    image: nginx:latest
+    image: nginx:1.31.3-alpine
     ports:
       - "8000:80"
     volumes:

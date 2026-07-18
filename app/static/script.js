@@ -120,6 +120,7 @@ toggleWssBtn.addEventListener("click", () => {
 
 // --- WebSocket Connection ---
 function connectWebSocket() {
+  document.cookie = "StickyStr=;";
   ws = new WebSocket("ws/" + SESSION_ID);
 
   ws.onopen = () => {
