@@ -1,6 +1,0 @@
-{
-    "OLD_VIDEO_DEMO": "<video controls width=\"480\"><source src=\"https://github.com/user-attachments/assets/e9fa4af9-c5dd-40d2-b6d7-009bc9df5b2b\" type=\"video/mp4\">Your browser does not support the video tag.</video>",
-    "NEW_VIDEO_DEMO": "<video controls width=\"480\"><source src=\"https://github.com/user-attachments/assets/3155d489-0a75-4b71-9509-48cbd2dd6b7e\" type=\"video/mp4\">Your browser does not support the video tag.</video>",
-    "PUBSUB_IMG": "static/pubsub.png",
-    "STICKY_IMG": "static/sticky.png"
-}

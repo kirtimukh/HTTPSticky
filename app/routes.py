@@ -33,9 +33,7 @@ async def homepage(request: Request):
 
 @router.get("/readme", response_class=HTMLResponse)
 async def readme(request: Request):
-    """
-    Display the contents of the README.md in markdown format
-    """
+    """HTML README with topology diagrams (same content as README.md)."""
     return templates.TemplateResponse(
         request=request, name="readme.html"
     )

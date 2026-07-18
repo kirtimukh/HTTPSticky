@@ -290,12 +290,9 @@
     /* —— Live exchange (text-mode style under graph) —— */
     .live-panel {
       flex-shrink: 0;
-      max-height: 38%;
-      min-height: 0;
       margin: 0 0.65rem 0.45rem;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
     }
 
     .live-panel-label {
@@ -306,14 +303,6 @@
       text-transform: uppercase;
       color: var(--text-muted);
       padding: 0 0.1rem 0.3rem;
-      flex-shrink: 0;
-    }
-
-    .live-exchange {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      overscroll-behavior: contain;
     }
 
     .live-exchange:empty::before {
