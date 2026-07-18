@@ -2,97 +2,131 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Echo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>HTTPSticky</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="static/style.css" />
   <script>
     const SESSION_ID = "{{ session_id }}";
-    const STICKY_STR = "{{ sticky_str }}"
+    const STICKY_STR = "{{ sticky_str }}";
+    const PAGE_BY = "{{ page_by }}";
   </script>
 </head>
 <body>
-  <nav>
-    <div class="title">
-      <h1>HTTP Sticky</h1>
-      <p>Handpick the service of your choosing</p>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <h1>HTTPSticky</h1>
+        <div class="meta">
+          <span>page: <strong id="meta-page">—</strong></span>
+          <span>ws: <strong id="meta-ws">—</strong></span>
+          <span>sticky: <strong id="meta-sticky">—</strong></span>
+          <span>client: <strong id="meta-client">—</strong></span>
+        </div>
+      </div>
+      <button type="button" class="history-btn" id="history-open" aria-controls="history-drawer" aria-expanded="false">
+        History
+        <span class="history-count" id="history-count" aria-hidden="true">0</span>
+      </button>
+    </header>
+
+    <div class="workspace">
+      <div class="content">
+        <div class="stage-wrap" id="stage">
+          <svg id="diagram" viewBox="0 0 1100 660" role="img" aria-label="System topology: browser, nginx, three app instances, redis" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <filter id="softglow" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur stdDeviation="2.2" result="b" />
+                <feMerge>
+                  <feMergeNode in="b" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <g id="edges"></g>
+            <g id="annotations"></g>
+            <g id="nodes"></g>
+            <g id="trails"></g>
+            <g id="packets"></g>
+            <g id="fx"></g>
+          </svg>
+        </div>
+
+        <div class="live-panel" aria-label="Current exchange">
+          <div class="live-panel-label">Current exchange</div>
+          <div id="live-exchange" class="live-exchange" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <aside class="dock" aria-label="Send actions">
+        <div class="action-desc" id="action-desc" aria-live="polite"></div>
+        <div class="composer">
+          <input id="msg" type="text" maxlength="140" placeholder="Message…" autocomplete="off" />
+        </div>
+        <div class="action-groups">
+          <div class="action-group">
+            <div class="group-label paired">Paired · same channel</div>
+            <div class="actions">
+              <div class="action-wrap" data-path="http-only">
+                <button type="button" class="action" data-path="http-only"><span class="label">HTTP RR</span></button>
+                <button type="button" class="info-btn" aria-label="About HTTP Round Robin" aria-expanded="false" data-info="http-only">i<i>Stateless HTTP. Nginx round-robins to any instance; reply returns over HTTP.</i></button>
+              </div>
+              <div class="action-wrap" data-path="http-sticky">
+                <button type="button" class="action" data-path="http-sticky"><span class="label">HTTP Sticky</span></button>
+                <button type="button" class="info-btn" aria-label="About HTTP Sticky" aria-expanded="false" data-info="http-sticky">i<i>Sticky cookie pins every request to the instance that issued it.</i></button>
+              </div>
+              <div class="action-wrap" data-path="ws-only">
+                <button type="button" class="action" data-path="ws-only"><span class="label">WS Only</span></button>
+                <button type="button" class="info-btn" aria-label="About WebSockets Only" aria-expanded="false" data-info="ws-only">i<i>Travels the long-lived WS tunnel straight to the WS owner and echoes back.</i></button>
+              </div>
+            </div>
+          </div>
+          <div class="action-group">
+            <div class="group-label split">Split · HTTP → WSS</div>
+            <div class="actions">
+              <div class="action-wrap" data-path="with-redis">
+                <button type="button" class="action" data-path="with-redis"><span class="label">Redis Queue</span></button>
+                <button type="button" class="info-btn" aria-label="About Publish to Queue" aria-expanded="false" data-info="with-redis">i<i>Any instance publishes to Redis; the WS owner delivers to you.</i></button>
+              </div>
+              <div class="action-wrap" data-path="not-sticky">
+                <button type="button" class="action" data-path="not-sticky"><span class="label">HTTP→WS</span></button>
+                <button type="button" class="info-btn" aria-label="About Non-sticky HTTP to WS" aria-expanded="false" data-info="not-sticky">i<i>No cookie. Only works if round-robin happens to hit the WS owner.</i></button>
+              </div>
+              <div class="action-wrap" data-path="sticky">
+                <button type="button" class="action" data-path="sticky"><span class="label">Sticky→WS</span></button>
+                <button type="button" class="info-btn" aria-label="About Sticky HTTP to WS" aria-expanded="false" data-info="sticky">i<i>Sticky cookie routes to the sticky issuer, which delivers over its in-memory WS.</i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
     </div>
-    <div class="doclink">
-      <p id="link-to-md">README.md</p>
+  </div>
+
+  <footer>
+    <span><strong>HTTPSticky</strong> · sticky sessions across HTTP &amp; WebSockets</span>
+    <a href="/readme" id="link-to-md">README.md</a>
+  </footer>
+
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="drawer" id="history-drawer" aria-label="Exchange history" aria-hidden="true">
+    <div class="drawer-head">
+      <h2>History</h2>
+      <button type="button" class="drawer-close" id="history-close">Close</button>
     </div>
-  </nav>
-
-  <main>
-    <div class="filters">
-      <label>Responses:</label>
-      <button class="filter-button" id="toggle-https">HTTPS</button>
-      <button class="filter-button" id="toggle-wss">WSS</button>
+    <div class="filters" role="toolbar" aria-label="Filter by path">
+      <button type="button" class="filter-chip" data-filter="all" aria-pressed="true">All</button>
+      <button type="button" class="filter-chip" data-filter="http-only" aria-pressed="true">HTTP RR</button>
+      <button type="button" class="filter-chip" data-filter="http-sticky" aria-pressed="true">HTTP Sticky</button>
+      <button type="button" class="filter-chip" data-filter="ws-only" aria-pressed="true">WS Only</button>
+      <button type="button" class="filter-chip" data-filter="with-redis" aria-pressed="true">Redis Queue</button>
+      <button type="button" class="filter-chip" data-filter="not-sticky" aria-pressed="true">HTTP→WS</button>
+      <button type="button" class="filter-chip" data-filter="sticky" aria-pressed="true">Sticky→WS</button>
     </div>
-
-    <div id="responses" class="responses"></div>
-    <div id="connections">
-      <span>page_by: <strong>{{page_by}}</strong></span>
-      <span>client_id: <strong>{{session_id}}</strong></span>
-      <span id="ws-pid">Ws_connection: </span>
-    </div>
-
-    <form id="the-form">
-      <label for="the-input">Enter your message</label>
-      <input type="text" id="the-input" maxlength="140" required />
-
-      <button class="request-button" type="submit" name="action" value="http-only">
-        HTTP & Round Robin
-        <span class="tooltip-icon">i</span>
-        <div class="tooltip-content">
-          Requests are serially delivered to application containers in round robin fashion.<br>
-        </div>
-      </button>
-
-      <button class="request-button" type="submit" name="action" value="http-sticky">
-        HTTP & Sticky
-        <span class="tooltip-icon">i</span>
-        <div class="tooltip-content">
-          Sticky cookie added by app instance ensures that all future requests reach the same instance every time.
-          <br>This includes the initial ws connection request.<br>
-        </div>
-      </button>
-
-      <button class="request-button" type="submit" name="action" value="ws-only">
-        WebSockets Only
-        <span class="tooltip-icon">i</span>
-        <div class="tooltip-content">
-          WS connections are long lived. After connection is made, all messages are delivered to the same app instance.
-          <br>This is true regardless of the usage of sticky headers.<br>
-        </div>
-      </button>
-
-      <button class="request-button" type="submit" name="action" value="with-redis">
-        Publish Message to Queue
-        <span class="tooltip-icon">i</span>
-        <div class="tooltip-content">
-          Standard method of handling WS connections.
-          <br>Messages are published to queue and the container with the recipient's connection does the delivery.
-        </div>
-      </button>
-
-      <button class="request-button" type="submit" name="action" value="not-sticky">
-        non-sticky HTTP & in-memory WebSockets
-        <span class="tooltip-icon">i</span>
-        <div class="tooltip-content">
-          WS response NOT GUARANTEED.
-          <br>No sticky cookie in http request. App instance that has the client's websocket session may not receive it.
-        </div>
-      </button>
-
-      <button class="request-button" type="submit" name="action" value="sticky">
-        sticky HTTP & in-memory WebSockets
-        <span class="tooltip-icon">i</span>
-        <div class="tooltip-content">
-          Uses sticky cookie-based routing for http.
-          <br>WebSocket connections carry the same cookie, and are routed to same instance.<br>
-        </div>
-      </button>
-    </form>
-  </main>
+    <div id="feed" class="feed" aria-live="polite"></div>
+  </aside>
 
   <script src="static/script.js"></script>
 </body>

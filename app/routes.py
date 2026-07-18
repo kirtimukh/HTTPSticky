@@ -27,7 +27,7 @@ async def homepage(request: Request):
         request=request, name="index.html",
         context={'session_id': client_id, "sticky_str": f"{stickycookie}-by-{APP_ID}", "page_by": APP_ID}
     )
-    # response.set_cookie("StickyStr", f"{stickycookie}-by-{APP_ID}")
+    response.set_cookie("StickyStr", f"{stickycookie}-by-{APP_ID}")
     return response
 
 
