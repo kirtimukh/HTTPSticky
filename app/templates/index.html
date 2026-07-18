@@ -7,8 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="static/style.css" />
+  <link rel="stylesheet" href="{{ base_path }}/static/style.css" />
   <script>
+    const BASE_PATH = "{{ base_path }}";
     const SESSION_ID = "{{ session_id }}";
     const STICKY_STR = "{{ sticky_str }}";
     const PAGE_BY = "{{ page_by }}";
@@ -107,7 +108,7 @@
 
   <footer>
     <span><strong>HTTPSticky</strong> · sticky sessions across HTTP &amp; WebSockets</span>
-    <a href="/readme" id="link-to-md">README.md</a>
+    <a href="{{ base_path }}/readme" id="link-to-md">README.md</a>
   </footer>
 
   <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
@@ -128,6 +129,6 @@
     <div id="feed" class="feed" aria-live="polite"></div>
   </aside>
 
-  <script src="static/script.js"></script>
+  <script src="{{ base_path }}/static/script.js"></script>
 </body>
 </html>

@@ -46,6 +46,15 @@ const PATHS = {
 
 const WORDS = ["Pebblejoy", "Chipperdew", "Marzipip", "Jollywink", "Sunnydrop", "Mossflute"];
 
+/** Public URL prefix (e.g. "/httpsticky") when host nginx strips a path before docker nginx. */
+const APP_BASE = typeof BASE_PATH === "string" ? BASE_PATH.replace(/\/$/, "") : "";
+const COOKIE_PATH = APP_BASE || "/";
+
+function apiUrl(path) {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${APP_BASE}${p}`;
+}
+
 const feed = document.getElementById("feed");
 const liveExchange = document.getElementById("live-exchange");
 const input = document.getElementById("msg");
@@ -690,15 +699,15 @@ async function missStep(s) {
 
 /* —— Network —— */
 function clearStickyCookie() {
-  document.cookie = "StickyStr=;";
+  document.cookie = `StickyStr=; path=${COOKIE_PATH}; Max-Age=0`;
 }
 
 function setStickyCookie() {
-  document.cookie = `StickyStr=${STICKY_STR};`;
+  document.cookie = `StickyStr=${STICKY_STR}; path=${COOKIE_PATH}`;
 }
 
 async function httpPost(url, text) {
-  const response = await fetch(url, {
+  const response = await fetch(apiUrl(url), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, op: "echo" }),
@@ -975,7 +984,7 @@ function connectWebSocket() {
   // Restore StickyStr so Nginx hashes initial connect and reconnects to the same upstream.
   setStickyCookie();
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  ws = new WebSocket(`${proto}//${location.host}/ws/${SESSION_ID}`);
+  ws = new WebSocket(`${proto}//${location.host}${apiUrl(`/ws/${SESSION_ID}`)}`);
 
   ws.onopen = () => {
     console.log("WebSocket connected");

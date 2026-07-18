@@ -4,3 +4,4 @@
 __pycache__/
 records.log
 redis_data/
+records.log

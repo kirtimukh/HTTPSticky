@@ -27,6 +27,8 @@ services:
       - redis
     environment:
       - APP_ID=app-1
+      # Public URL prefix when host nginx strips a path (e.g. /httpsticky). Leave empty for root.
+      - BASE_PATH=${BASE_PATH:-}
     volumes:
       - ./records.log:/tmp/records.log
       - ./app:/app/app
@@ -43,6 +45,7 @@ services:
       - redis
     environment:
       - APP_ID=app-2
+      - BASE_PATH=${BASE_PATH:-}
     volumes:
       - ./records.log:/tmp/records.log
       - ./app:/app/app
@@ -57,6 +60,7 @@ services:
       - redis
     environment:
       - APP_ID=app-3
+      - BASE_PATH=${BASE_PATH:-}
     volumes:
       - ./records.log:/tmp/records.log
       - ./app:/app/app

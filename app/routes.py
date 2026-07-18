@@ -6,13 +6,14 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.models import DataIn
-from app.settings import APP_ID, REDIS_CHANNEL, redis
+from app.settings import APP_ID, BASE_PATH, COOKIE_PATH, REDIS_CHANNEL, redis
 from app.utils import make_client_id, make_return_txt, write_to_log
 from app.wsmanager import wsmanager
 
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["base_path"] = BASE_PATH
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -27,7 +28,7 @@ async def homepage(request: Request):
         request=request, name="index.html",
         context={'session_id': client_id, "sticky_str": f"{stickycookie}-by-{APP_ID}", "page_by": APP_ID}
     )
-    response.set_cookie("StickyStr", f"{stickycookie}-by-{APP_ID}")
+    response.set_cookie("StickyStr", f"{stickycookie}-by-{APP_ID}", path=COOKIE_PATH)
     return response
 
 
